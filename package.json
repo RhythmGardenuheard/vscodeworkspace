@@ -1,0 +1,13 @@
+{
+  "name": "vscode-git-learning",
+  "version": "1.0.0",
+  "description": "一个用于学习 VS Code 和 Git 的示例项目",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js"
+  },
+  "keywords": ["vscode", "git", "learning"],
+  "author": "",
+  "license": "ISC"
+}
