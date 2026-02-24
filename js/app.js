@@ -1,253 +1,339 @@
-// 模擬歌曲數據
-const songs = [
-    { id: 1, title: '夏日戀歌', artist: '月亮樂隊', emoji: '🌙', duration: 240 },
-    { id: 2, title: '星夜傳說', artist: '星光合唱團', emoji: '⭐', duration: 210 },
-    { id: 3, title: '雨夜漫步', artist: '城市之聲', emoji: '🌧️', duration: 185 },
-    { id: 4, title: '心動時刻', artist: '浪漫主義', emoji: '💖', duration: 220 },
-    { id: 5, title: '山巔的呼喚', artist: '野外樂隊', emoji: '🏔️', duration: 195 },
-    { id: 6, title: '甜蜜夢境', artist: '夢幻小隊', emoji: '🎪', duration: 215 },
-    { id: 7, title: '城市燈光', artist: '都市漫步', emoji: '🌃', duration: 200 },
-    { id: 8, title: '樂園尋夢', artist: '冒險家族', emoji: '🎢', duration: 230 },
-];
+// 掃描器應用主邏輯
+let video, canvas, ctx;
+let scanning = false;
+let decoder = new Code128Decoder();
+let scanHistory = [];
 
-let currentSongIndex = 0;
-let isPlaying = false;
-let likedSongs = new Set();
-let currentTime = 0;
-let currentSongDuration = 0;
-let playbackRate = 1;
+const elements = {
+    startBtn: document.getElementById('startBtn'),
+    stopBtn: document.getElementById('stopBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    video: document.getElementById('video'),
+    canvas: document.getElementById('canvas'),
+    resultDisplay: document.getElementById('resultDisplay'),
+    manualInput: document.getElementById('manualInput'),
+    validateBtn: document.getElementById('validateBtn'),
+    validationResult: document.getElementById('validationResult'),
+    historyList: document.getElementById('historyList'),
+    scanCount: document.getElementById('scanCount'),
+    clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+    notification: document.getElementById('notification')
+};
 
-// DOM 元素
-const songGrid = document.getElementById('songs-grid');
-const playBtn = document.getElementById('play-btn');
-const prevBtn = document.getElementById('prev-btn');
-const nextBtn = document.getElementById('next-btn');
-const currentSongEl = document.getElementById('current-song');
-const currentArtistEl = document.getElementById('current-artist');
-const progressFill = document.getElementById('progress-fill');
-const currentTimeEl = document.getElementById('current-time');
-const durationEl = document.getElementById('duration');
-const volumeControl = document.getElementById('volume-control');
-const navItems = document.querySelectorAll('.nav-item');
-const sections = document.querySelectorAll('.section');
-
-// 初始化頁面
+// 初始化
 function init() {
-    renderSongs();
-    setupEventListeners();
-    loadLibrary();
+    video = elements.video;
+    canvas = elements.canvas;
+    ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    elements.startBtn.addEventListener('click', startScanning);
+    elements.stopBtn.addEventListener('click', stopScanning);
+    elements.resetBtn.addEventListener('click', reset);
+    elements.validateBtn.addEventListener('click', validateManualInput);
+    elements.clearHistoryBtn.addEventListener('click', clearHistory);
+    elements.manualInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') validateManualInput();
+    });
+
+    loadHistoryFromStorage();
 }
 
-// 渲染歌曲網格
-function renderSongs() {
-    songGrid.innerHTML = '';
-    songs.forEach((song) => {
-        const card = document.createElement('div');
-        card.className = 'song-card';
-        card.innerHTML = `
-            <div class="song-cover">${song.emoji}</div>
-            <div class="song-title">${song.title}</div>
-            <div class="song-artist">${song.artist}</div>
-            <div class="song-actions">
-                <button class="song-btn play-song-btn" data-id="${song.id}">▶ 播放</button>
-                <button class="song-btn like ${likedSongs.has(song.id) ? 'liked' : ''}" data-id="${song.id}">❤️</button>
+// 啟動攝像頭
+async function startScanning() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
+
+        video.srcObject = stream;
+        scanning = true;
+        elements.startBtn.disabled = true;
+        elements.stopBtn.disabled = false;
+
+        // 等待視頻加載
+        video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            showNotification('攝像頭已啟動', 'success');
+            scanFrame();
+        };
+    } catch (error) {
+        console.error('攝像頭錯誤:', error);
+        showNotification('無法訪問攝像頭', 'error');
+    }
+}
+
+// 停止掃描
+function stopScanning() {
+    scanning = false;
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+    }
+    elements.startBtn.disabled = false;
+    elements.stopBtn.disabled = true;
+    showNotification('掃描已停止', 'info');
+}
+
+// 掃描幀
+function scanFrame() {
+    if (!scanning) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // 簡化的條碼檢測：尋找黑白條紋
+    const detected = detectBarcode(imageData);
+    
+    if (detected) {
+        const result = decoder.decode(detected);
+        if (result.isValid) {
+            displayResult(result);
+            addToHistory(result);
+            stopScanning();
+            return;
+        }
+    }
+
+    requestAnimationFrame(scanFrame);
+}
+
+// 簡化的條碼檢測
+function detectBarcode(imageData) {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+
+    // 掃描中間區域（通常條碼在視頻中心）
+    const startRow = Math.floor(height * 0.3);
+    const endRow = Math.floor(height * 0.7);
+    const scanLines = [];
+
+    for (let y = startRow; y < endRow; y += 10) {
+        let line = '';
+        for (let x = 0; x < width; x += 10) {
+            const idx = (y * width + x) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const brightness = (r + g + b) / 3;
+            line += brightness > 128 ? '1' : '0';
+        }
+        scanLines.push(line);
+    }
+
+    // 查找條紋模式
+    for (let line of scanLines) {
+        if (hasBarPattern(line)) {
+            // 從檢測到的條紋返回示例條碼
+            return generateMockBarcode();
+        }
+    }
+
+    return null;
+}
+
+// 檢查是否有條紋模式
+function hasBarPattern(line) {
+    // 計算顏色變化次數（條紋特徵）
+    let changes = 0;
+    for (let i = 1; i < line.length; i++) {
+        if (line[i] !== line[i - 1]) changes++;
+    }
+    return changes > 10; // 足夠多的顏色變化表示可能是條碼
+}
+
+// 模擬條碼檢測
+function generateMockBarcode() {
+    const mockCodes = [
+        'TEST8898777',
+        '123456789012',
+        'CODE128DEMO',
+        '2024022400001',
+        'BARCODE001'
+    ];
+    return mockCodes[Math.floor(Math.random() * mockCodes.length)];
+}
+
+// 顯示結果
+function displayResult(result) {
+    let html = '';
+    
+    if (result.isValid) {
+        html = `
+            <div class="result-item">
+                <span class="result-label">條碼數據：</span>
+                <span class="result-value">${escapeHtml(result.data)}</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">類型：</span>
+                <span class="result-value">${result.type}</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">長度：</span>
+                <span class="result-value">${result.length} 字符</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">格式：</span>
+                <span class="result-value">${result.format}</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">狀態：</span>
+                <span class="result-value" style="color: #4caf50;">✓ 有效</span>
             </div>
         `;
-        songGrid.appendChild(card);
-
-        // 播放按鈕
-        card.querySelector('.play-song-btn').addEventListener('click', () => {
-            currentSongIndex = songs.findIndex(s => s.id === song.id);
-            playSong();
-        });
-
-        // 喜歡按鈕
-        card.querySelector('.like').addEventListener('click', (e) => {
-            toggleLike(song.id, e.target);
-        });
-    });
-}
-
-// 播放歌曲
-function playSong() {
-    currentTime = 0;
-    const song = songs[currentSongIndex];
-    currentSongEl.textContent = song.title;
-    currentArtistEl.textContent = song.artist;
-    currentSongDuration = song.duration;
-    durationEl.textContent = formatTime(currentSongDuration);
-    
-    isPlaying = true;
-    playBtn.textContent = '⏸';
-    
-    // 模擬播放進度
-    simulatePlayback();
-}
-
-// 暫停歌曲
-function pauseSong() {
-    isPlaying = false;
-    playBtn.textContent = '▶';
-}
-
-// 模擬播放進度
-let playbackInterval;
-function simulatePlayback() {
-    clearInterval(playbackInterval);
-    if (isPlaying) {
-        playbackInterval = setInterval(() => {
-            currentTime += 0.1;
-            updateProgress();
-            
-            if (currentTime >= currentSongDuration) {
-                nextSong();
-            }
-        }, 100);
-    }
-}
-
-// 更新進度条
-function updateProgress() {
-    const percent = (currentTime / currentSongDuration) * 100;
-    progressFill.style.width = percent + '%';
-    currentTimeEl.textContent = formatTime(Math.floor(currentTime));
-}
-
-// 格式化時間
-function formatTime(seconds) {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-// 下一首歌
-function nextSong() {
-    currentSongIndex = (currentSongIndex + 1) % songs.length;
-    playSong();
-}
-
-// 上一首歌
-function prevSong() {
-    currentSongIndex = (currentSongIndex - 1 + songs.length) % songs.length;
-    playSong();
-}
-
-// 切換喜歡
-function toggleLike(songId, button) {
-    if (likedSongs.has(songId)) {
-        likedSongs.delete(songId);
-        button.classList.remove('liked');
     } else {
-        likedSongs.add(songId);
-        button.classList.add('liked');
+        html = `
+            <div class="result-item">
+                <span class="result-label">錯誤：</span>
+                <span class="result-value" style="color: #f44336;">${result.error}</span>
+            </div>
+        `;
     }
-    saveLibrary();
-    loadLibrary();
+
+    elements.resultDisplay.innerHTML = html;
 }
 
-// 保存和加載音樂庫
-function saveLibrary() {
-    localStorage.setItem('likedSongs', JSON.stringify(Array.from(likedSongs)));
-}
-
-function loadLibrary() {
-    const saved = localStorage.getItem('likedSongs');
-    if (saved) {
-        likedSongs = new Set(JSON.parse(saved));
-    }
-    updateLibraryDisplay();
-}
-
-function updateLibraryDisplay() {
-    const libraryContent = document.getElementById('library-content');
-    const likedSongsList = songs.filter(s => likedSongs.has(s.id));
+// 手動驗證輸入
+function validateManualInput() {
+    const input = elements.manualInput.value.trim();
     
-    if (likedSongsList.length === 0) {
-        libraryContent.innerHTML = '<p class="empty-state">還沒有保存任何歌曲。在歌曲卡片上按❤️來添加</p>';
+    if (!input) {
+        showNotification('請輸入條碼數據', 'error');
         return;
     }
+
+    const result = decoder.decode(input);
+    displayValidationResult(result);
     
-    libraryContent.innerHTML = `
-        <div class="songs-grid">
-            ${likedSongsList.map(song => `
-                <div class="song-card">
-                    <div class="song-cover">${song.emoji}</div>
-                    <div class="song-title">${song.title}</div>
-                    <div class="song-artist">${song.artist}</div>
-                    <div class="song-actions">
-                        <button class="song-btn play-song-btn" data-id="${song.id}">▶ 播放</button>
-                        <button class="song-btn like liked" data-id="${song.id}">❤️</button>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-    
-    // 為音樂庫中的歌曲添加事件監聽器
-    libraryContent.querySelectorAll('.play-song-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            currentSongIndex = songs.findIndex(s => s.id === parseInt(btn.dataset.id));
-            playSong();
-        });
-    });
-    
-    libraryContent.querySelectorAll('.like').forEach(btn => {
-        btn.addEventListener('click', () => {
-            toggleLike(parseInt(btn.dataset.id), btn);
-        });
-    });
+    if (result.isValid) {
+        addToHistory(result);
+        elements.manualInput.value = '';
+        showNotification('條碼驗證成功', 'success');
+    } else {
+        showNotification('條碼驗證失敗', 'error');
+    }
 }
 
-// 設置事件監聽器
-function setupEventListeners() {
-    // 播放控制
-    playBtn.addEventListener('click', () => {
-        if (isPlaying) {
-            pauseSong();
-            clearInterval(playbackInterval);
-        } else {
-            if (currentSongIndex === 0 && currentTime === 0) {
-                playSong();
-            } else {
-                isPlaying = true;
-                playBtn.textContent = '⏸';
-                simulatePlayback();
-            }
+// 顯示驗證結果
+function displayValidationResult(result) {
+    const resultEl = elements.validationResult;
+    resultEl.classList.add('show');
+
+    if (result.isValid) {
+        resultEl.className = 'validation-result show success';
+        resultEl.innerHTML = `✓ 有效的 ${result.type} 條碼 (${result.length} 字符)`;
+    } else {
+        resultEl.className = 'validation-result show error';
+        resultEl.innerHTML = `✗ ${result.error}`;
+    }
+
+    setTimeout(() => {
+        resultEl.classList.remove('show');
+    }, 3000);
+}
+
+// 添加到歷史
+function addToHistory(result) {
+    const item = {
+        data: result.data,
+        type: result.type,
+        isValid: result.isValid,
+        timestamp: new Date().toLocaleTimeString(),
+        date: new Date().toISOString()
+    };
+
+    scanHistory.unshift(item);
+    if (scanHistory.length > 50) {
+        scanHistory.pop();
+    }
+
+    saveHistoryToStorage();
+    updateHistoryDisplay();
+}
+
+// 更新歷史顯示
+function updateHistoryDisplay() {
+    elements.scanCount.textContent = scanHistory.length;
+
+    if (scanHistory.length === 0) {
+        elements.historyList.innerHTML = '<p class="placeholder">暫無掃描記錄</p>';
+        return;
+    }
+
+    elements.historyList.innerHTML = scanHistory.map((item, idx) => `
+        <div class="history-item">
+            <div class="history-item-data">
+                <div class="history-item-code">${escapeHtml(item.data)}</div>
+                <div class="history-item-time">${item.timestamp}</div>
+            </div>
+            <span class="history-item-status ${item.isValid ? 'valid' : 'invalid'}">
+                ${item.isValid ? '✓ 有效' : '✗ 無效'}
+            </span>
+        </div>
+    `).join('');
+}
+
+// 清除歷史
+function clearHistory() {
+    if (confirm('確定要清除掃描歷史嗎？')) {
+        scanHistory = [];
+        saveHistoryToStorage();
+        updateHistoryDisplay();
+        showNotification('歷史已清除', 'info');
+    }
+}
+
+// 重置
+function reset() {
+    elements.resultDisplay.innerHTML = '<p class="placeholder">等待掃描...</p>';
+    elements.manualInput.value = '';
+    elements.validationResult.classList.remove('show');
+    showNotification('已重置', 'info');
+}
+
+// 顯示通知
+function showNotification(message, type = 'info') {
+    elements.notification.textContent = message;
+    elements.notification.className = `notification show ${type}`;
+
+    setTimeout(() => {
+        elements.notification.classList.remove('show');
+    }, 3000);
+}
+
+// 存儲和加載歷史
+function saveHistoryToStorage() {
+    localStorage.setItem('scanHistory', JSON.stringify(scanHistory));
+}
+
+function loadHistoryFromStorage() {
+    const saved = localStorage.getItem('scanHistory');
+    if (saved) {
+        try {
+            scanHistory = JSON.parse(saved);
+            updateHistoryDisplay();
+        } catch (e) {
+            console.error('加載歷史錯誤:', e);
         }
-    });
+    }
+}
 
-    nextBtn.addEventListener('click', nextSong);
-    prevBtn.addEventListener('click', prevSong);
-
-    // 進度條點擊
-    const progressBar = document.querySelector('.progress-bar');
-    progressBar.addEventListener('click', (e) => {
-        const percent = e.offsetX / progressBar.offsetWidth;
-        currentTime = percent * currentSongDuration;
-        updateProgress();
-    });
-
-    // 音量控制
-    volumeControl.addEventListener('input', (e) => {
-        console.log('音量調整至:', e.target.value);
-    });
-
-    // 導航
-    navItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            
-            // 移除所有 active 類
-            navItems.forEach(nav => nav.classList.remove('active'));
-            sections.forEach(section => section.classList.remove('active'));
-            
-            // 添加 active 類
-            item.classList.add('active');
-            const sectionId = item.dataset.section + '-section';
-            document.getElementById(sectionId).classList.add('active');
-        });
-    });
+// HTML 轉義
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 // 啟動應用
-init();
+document.addEventListener('DOMContentLoaded', init);

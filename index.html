@@ -3,120 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MusicHub - 你的音樂串流平台</title>
+    <title>Code128 條碼掃描器</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
-        <!-- 側邊欄 -->
-        <aside class="sidebar">
-            <div class="logo">
-                <h1>🎵 MusicHub</h1>
-            </div>
-            <nav class="nav-menu">
-                <a href="#" class="nav-item active" data-section="home">
-                    <span class="icon">🏠</span>
-                    <span>首頁</span>
-                </a>
-                <a href="#" class="nav-item" data-section="search">
-                    <span class="icon">🔍</span>
-                    <span>搜尋</span>
-                </a>
-                <a href="#" class="nav-item" data-section="library">
-                    <span class="icon">📚</span>
-                    <span>我的音樂庫</span>
-                </a>
-                <a href="#" class="nav-item" data-section="playlists">
-                    <span class="icon">🎶</span>
-                    <span>播放清單</span>
-                </a>
-            </nav>
-        </aside>
+        <header class="header">
+            <h1>📦 Code128 條碼掃描器</h1>
+            <p>實時掃描和識別 Code128 條碼</p>
+        </header>
 
-        <!-- 主要內容 -->
         <main class="main-content">
-            <!-- 頂部欄 -->
-            <header class="top-bar">
-                <div class="search-box">
-                    <input type="text" placeholder="搜尋歌曲、藝人、專輯...">
-                    <button>🔍</button>
+            <!-- 掃描區域 -->
+            <section class="scanner-section">
+                <div class="scanner-box">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="scanner-overlay">
+                        <div class="scanner-frame"></div>
+                    </div>
                 </div>
-                <div class="user-profile">
-                    <span class="username">用戶</span>
-                    <div class="avatar">👤</div>
+
+                <div class="scanner-controls">
+                    <button id="startBtn" class="btn btn-primary">
+                        📷 啟動攝像頭
+                    </button>
+                    <button id="stopBtn" class="btn btn-secondary" disabled>
+                        ⏹️ 停止掃描
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary">
+                        🔄 重置
+                    </button>
                 </div>
-            </header>
+            </section>
 
-            <!-- 內容區域 -->
-            <div class="content-area">
-                <!-- 首頁 -->
-                <section id="home-section" class="section active">
-                    <h2>今日推薦</h2>
-                    <div class="featured-playlist">
-                        <div class="featured-card">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%231DB954' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em' fill='white'%3E🎵%3C/text%3E%3C/svg%3E" alt="推薦">
-                            <h3>熱門排行榜</h3>
-                            <p>本週最受歡迎的歌曲</p>
-                        </div>
-                        <div class="featured-card">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%231ed760' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em' fill='black'%3E🎧%3C/text%3E%3C/svg%3E" alt="推薦">
-                            <h3>放鬆心情</h3>
-                            <p>舒緩的背景音樂</p>
-                        </div>
-                        <div class="featured-card">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23191414' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em' fill='%231DB954'%3E🎤%3C/text%3E%3C/svg%3E" alt="推薦">
-                            <h3>獨立藝人</h3>
-                            <p>發現新興音樂人</p>
-                        </div>
+            <!-- 結果顯示 -->
+            <section class="result-section">
+                <div class="result-card">
+                    <h2>掃描結果</h2>
+                    <div id="resultDisplay" class="result-display">
+                        <p class="placeholder">等待掃描...</p>
                     </div>
+                </div>
 
-                    <h2>熱門歌曲</h2>
-                    <div class="songs-grid" id="songs-grid">
-                        <!-- 動態生成的歌曲卡片 -->
+                <!-- 手動輸入 -->
+                <div class="manual-input-card">
+                    <h3>手動輸入驗證</h3>
+                    <div class="input-group">
+                        <input type="text" id="manualInput" placeholder="輸入 Code128 條碼數據">
+                        <button id="validateBtn" class="btn btn-primary">✓ 驗證</button>
                     </div>
-                </section>
+                    <div id="validationResult" class="validation-result"></div>
+                </div>
+            </section>
 
-                <!-- 我的音樂庫 -->
-                <section id="library-section" class="section">
-                    <h2>我的音樂庫</h2>
-                    <div id="library-content">
-                        <p class="empty-state">還沒有保存任何歌曲。在歌曲卡片上按❤️來添加</p>
+            <!-- 掃描歷史 -->
+            <section class="history-section">
+                <div class="history-card">
+                    <div class="history-header">
+                        <h2>掃描歷史</h2>
+                        <span id="scanCount" class="scan-count">0</span>
+                        <button id="clearHistoryBtn" class="btn btn-small">清除</button>
                     </div>
-                </section>
-            </div>
+                    <div id="historyList" class="history-list">
+                        <p class="placeholder">暫無掃描記錄</p>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
-    <!-- 播放器 -->
-    <div class="player">
-        <div class="player-info">
-            <div class="player-cover">🎵</div>
-            <div class="player-details">
-                <h4 id="current-song">選擇一首歌曲</h4>
-                <p id="current-artist">藝人名稱</p>
-            </div>
-        </div>
+    <!-- 狀態提示 -->
+    <div id="notification" class="notification"></div>
 
-        <div class="player-controls">
-            <button class="control-btn" id="prev-btn">⏮</button>
-            <button class="control-btn play-btn" id="play-btn">▶</button>
-            <button class="control-btn" id="next-btn">⏭</button>
-        </div>
-
-        <div class="player-progress">
-            <span id="current-time">0:00</span>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <span id="duration">0:00</span>
-        </div>
-
-        <div class="player-volume">
-            <span>🔊</span>
-            <input type="range" min="0" max="100" value="70" id="volume-control">
-        </div>
-    </div>
-
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="js/code128.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
