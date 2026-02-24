@@ -372,35 +372,96 @@ body {
     border-left: 4px solid #2196f3;
 }
 
-/* 響應式 */
-@media (max-width: 768px) {
-    .header h1 {
-        font-size: 24px;
-    }
+/* 權限指導模態框 */
+.permission-guide {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-    .result-section {
-        grid-template-columns: 1fr;
-    }
+.permission-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+}
 
-    .scanner-box {
-        padding-bottom: 100%;
-    }
+.permission-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
 
-    .scanner-controls {
-        grid-template-columns: 1fr;
-    }
+.permission-modal h3 {
+    color: #333;
+    margin-bottom: 16px;
+    font-size: 20px;
+}
 
-    .result-item {
-        grid-template-columns: 1fr;
-    }
+.permission-modal p {
+    color: #666;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
 
-    .history-item {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+.permission-modal ol {
+    text-align: left;
+    margin-bottom: 20px;
+    padding-left: 20px;
+}
 
-    .history-item-status {
-        margin-left: 0;
-        margin-top: 8px;
-    }
+.permission-modal li {
+    margin-bottom: 8px;
+    color: #555;
+    line-height: 1.4;
+}
+
+.permission-modal strong {
+    color: #667eea;
+}
+
+.permission-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.permission-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.permission-actions button:first-child {
+    background: #667eea;
+    color: white;
+}
+
+.permission-actions button:first-child:hover {
+    background: #5a67d8;
+}
+
+.permission-actions button:last-child {
+    background: #f0f0f0;
+    color: #666;
+}
+
+.permission-actions button:last-child:hover {
+    background: #e8e8e8;
 }

@@ -38,8 +38,51 @@ function init() {
     loadHistoryFromStorage();
 }
 
+// 檢查攝像頭權限狀態
+async function checkCameraPermission() {
+    try {
+        const permission = await navigator.permissions.query({ name: 'camera' });
+        if (permission.state === 'denied') {
+            showPermissionGuide();
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('無法檢查攝像頭權限:', error);
+        return true; // 默認允許，避免阻止其他操作
+    }
+}
+
+// 顯示權限恢復指導
+function showPermissionGuide() {
+    const guide = document.createElement('div');
+    guide.className = 'permission-guide';
+    guide.innerHTML = `
+        <div class="permission-overlay">
+            <div class="permission-modal">
+                <h3>📷 需要攝像頭權限</h3>
+                <p>請按照以下步驟允許攝像頭訪問：</p>
+                <ol>
+                    <li>點擊瀏覽器地址欄旁邊的 <strong>🔒 鎖定圖標</strong></li>
+                    <li>找到 <strong>攝像頭</strong> 設置</li>
+                    <li>將權限改為 <strong>允許</strong></li>
+                    <li>刷新頁面重新嘗試</li>
+                </ol>
+                <div class="permission-actions">
+                    <button onclick="this.closest('.permission-guide').remove(); location.reload();">已允許，刷新頁面</button>
+                    <button onclick="this.closest('.permission-guide').remove();">稍後再說</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(guide);
+}
+
 // 啟動攝像頭
 async function startScanning() {
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) return;
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -64,7 +107,7 @@ async function startScanning() {
         };
     } catch (error) {
         console.error('攝像頭錯誤:', error);
-        showNotification('無法訪問攝像頭', 'error');
+        showNotification('無法訪問攝像頭，請檢查權限設置。', 'error');
     }
 }
 
